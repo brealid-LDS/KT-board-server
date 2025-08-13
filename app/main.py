@@ -107,6 +107,8 @@ def heart_beat():
         return jsonify({"status": "error", "message": "client_info must be dict"}), 400
 
     server_cache[client_token]["last_heartbeat"] = time.time()
+    if client_info.get('gpu', []) == [] and server_cache[client_token]["client_info"].get('gpu', []) != []:
+        client_info['gpu'] = server_cache[client_token]["client_info"]['gpu']
     server_cache[client_token]["client_info"] = client_info
     return jsonify({"status": "ok", "message": f"Heartbeat received from {client_token}"})
 
