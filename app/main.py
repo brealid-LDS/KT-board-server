@@ -20,7 +20,7 @@ def is_alive(client_token):
     if hb == 'None':
         return False
     period = registered_clients[client_token]["client_config"].get('heartbeat_period', 5)
-    return (time.time() - hb) < 4 * period
+    return (time.time() - hb) < 10 * period
 
 def get_group_alive(group_name):
     if 'client-token' not in group_cache[group_name]:
@@ -122,7 +122,7 @@ def dashboard_data():
     for group_name in sorted(group_cache.keys()):
         tokens = group_cache[group_name].get('client-token', [])
         clients_payload = []
-        for t in tokens:
+        for t in sorted(tokens, key=lambda x: registered_clients[x]['client_name']):
             reg = registered_clients.get(t, {})
             info = server_cache.get(t, {})
             hb = info.get('last_heartbeat', 'None')
