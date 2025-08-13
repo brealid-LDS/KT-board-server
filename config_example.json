@@ -1,0 +1,6 @@
+{
+    "site-name": "KT board",
+    "host": "0.0.0.0",
+    "port": "9961",
+    "key-path": "<random-url-str>"
+}

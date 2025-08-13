@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block body %}
+  <div class="header">
+    <div class="title">
+      <h1># {{ site_name }}</h1>
+      <!-- <div class="subtitle">自动刷新（5s） · 保留已展开的 Group 与 GPU 面板</div> -->
+    </div>
+    <div class="overview" id="overview"></div>
+  </div>
+
+  <div id="groups"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const DATA_URL = "/{{ config.key_path if config and config.key_path else '' }}/dashboard-data".replace(/\/\//g, "/");
+
+  // ====== UI 状态：保留展开的 Group 与 GPU 详情 ======
+  const uiState = {
+    groupOpen: new Set(),            // 按组名记录展开
+    expandedGpuKey: null             // `${groupName}::${clientName}`
+  };
+
+  function saveGroupOpenState() {
+    uiState.groupOpen.clear();
+    document.querySelectorAll('.group').forEach(node => {
+      const name = node.getAttribute('data-group');
+      if (node.open) uiState.groupOpen.add(name);
+    });
+  }
+
+  function restoreGroupOpen(detailsEl, groupName) {
+    if (uiState.groupOpen.has(groupName)) detailsEl.setAttribute('open', '');
+  }
+
+  // ====== 工具 ======
+  const clampPct = p => Math.max(0, Math.min(100, p || 0));
+  const pctOf = (used, total) => (!total || total <= 0) ? 0 : clampPct(used / total * 100);
+  const fmt = n => (n == null || isNaN(n)) ? "—" : (Math.round(n * 100) / 100);
+
+  function bar(widthPct, labelText) {
+    const w = clampPct(widthPct).toFixed(2);
+    const label = (labelText ?? "").toString();
+    return `
+      <div class="bar" style="--w:${w}%">
+        <div class="label">${label}</div>
+      </div>`;
+  }
+
+
+
+  // ====== 渲染 ======
+  function renderOverview(data) {
+    const groups = data.groups.length;
+    const clients = data.groups.reduce((a, g) => a + g.total, 0);
+    const alive = data.groups.reduce((a, g) => a + g.alive, 0);
+    const el = document.getElementById('overview');
+    el.innerHTML = `
+      <div class="kpi"><div class="label">组数</div><div class="value">${groups}</div></div>
+      <div class="kpi"><div class="label">客户端总数</div><div class="value">${clients}</div></div>
+      <div class="kpi"><div class="label">在线</div><div class="value">${alive}</div></div>
+      <div class="kpi"><div class="label">宕机/未知</div><div class="value">${clients - alive}</div></div>
+    `;
+  }
+
+  function renderGroups(data) {
+    const root = document.getElementById('groups');
+    root.innerHTML = data.groups.map(group => {
+      const pieces = [];
+      group.clients.forEach(c => {
+        pieces.push(renderClient(group.name, c));
+        if (uiState.expandedGpuKey === `${group.name}::${c.name}`) {
+          pieces.push(renderGpuPanel(group.name, c));
+        }
+      });
+
+      return `
+        <details class="group" data-group="${group.name}">
+          <summary>
+            <div class="group-name">${group.name} <span class="alive-pill">存活 ${group.alive}/${group.total}</span></div>
+            <div class="muted" style="font-size:12px">点击展开/收起</div>
+          </summary>
+          <div class="clients">
+            ${pieces.join('')}
+          </div>
+        </details>`;
+    }).join('');
+
+    // 恢复组展开状态 + 绑定 toggle
+    document.querySelectorAll('.group').forEach(node => {
+      const name = node.getAttribute('data-group');
+      restoreGroupOpen(node, name);
+      node.addEventListener('toggle', () => saveGroupOpenState());
+    });
+
+    // 绑定 GPU 展开按钮
+    document.querySelectorAll('[data-gpu-btn]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const key = e.currentTarget.getAttribute('data-gpu-btn');
+        uiState.expandedGpuKey = (uiState.expandedGpuKey === key) ? null : key;
+        saveGroupOpenState();
+        // 只重绘组列表即可
+        renderGroups(window.__DASHBOARD_DATA__);
+      });
+    });
+  }
+
+  function renderClient(groupName, c) {
+    const statusClass = c.alive ? 'status-alive' : 'status-down';
+    const cardClass = c.alive ? 'alive' : 'down';
+
+    // CPU：文本不显示“每核”，但进度条宽度按 (占用率/核心数) 以免溢出
+    let cpuPct = 0;
+    let cpuText = '未知';
+    if (c.cpu) {
+      cpuText = `核心数: ${c.cpu.cores}, 占用率: ${fmt(c.cpu.usagePct)}%`;
+      cpuPct = (c.cpu.cores && c.cpu.cores > 0) ? c.cpu.usagePct / c.cpu.cores : c.cpu.usagePct || 0;
+    }
+
+    const memText = c.mem ? `占用: ${fmt(c.mem.usedGB)} GB / ${fmt(c.mem.totalGB)} GB` : '未知';
+    const key = `${groupName}::${c.name}`;
+    const gpuBtnLabel = (uiState.expandedGpuKey === key) ? '收起 GPU 详情' : 'GPU 详情';
+
+    return `
+      <div class="client ${cardClass}">
+        <div class="client-header">
+          <div class="client-name">${c.name}</div>
+          <div class="client-status ${statusClass}">${c.alive ? '在线' : '宕机/未知'}</div>
+        </div>
+        <div class="client-body">
+          <div class="kv"><div class="label">上次 heartbeat</div><div class="value">${c.timeago}</div></div>
+          <div class="kv"><div class="label">CPU</div><div class="value">${cpuText}</div>${bar(cpuPct, `${fmt(cpuPct)}%`)}</div>
+          <!-- <div class="kv"><div class="label">内存</div><div class="value">${memText}</div>${bar(pctOf(c.mem?.usedGB, c.mem?.totalGB), `${fmt(c.mem?.usedGB)} / ${fmt(c.mem?.totalGB)} GB (${fmt(pctOf(c.mem?.usedGB, c.mem?.totalGB))}%)`)}</div> -->
+          <div class="kv"><div class="label">内存</div><div class="value">${memText}</div>${bar(pctOf(c.mem?.usedGB, c.mem?.totalGB), `${fmt(pctOf(c.mem?.usedGB, c.mem?.totalGB))}%`)}</div>
+          <div class="kv"><span class="link-btn" data-gpu-btn="${key}">${gpuBtnLabel}</span></div>
+        </div>
+      </div>`;
+  }
+
+  function renderGpuPanel(groupName, c) {
+    const rows = (c.gpu && c.gpu.length) ? c.gpu.map((g, i) => {
+      const utilPct = clampPct(g.usagePct || 0);
+      const memPct  = pctOf(g.memUsedGB, g.memTotalGB);
+      const memLabel = `${fmt(g.memUsedGB)} / ${fmt(g.memTotalGB)} GB (${fmt(memPct)}%)`;
+      return `
+        <tr>
+          <td class="mono">GPU ${i}</td>
+          <td>${bar(utilPct, `${fmt(utilPct)}%`)}</td>
+          <td>${bar(memPct, memLabel)}</td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="3" class="muted">未知</td></tr>`;
+
+    return `
+      <div class="gpu-panel">
+        <div class="gpu-panel-header">
+          <div class="gpu-title">${groupName} / ${c.name} · GPU 详情</div>
+          <div class="gpu-actions">
+            <button type="button" data-gpu-btn="${groupName}::${c.name}">关闭</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>编号</th><th style="width:40%">利用率</th><th style="width:40%">显存</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  // ====== 拉取数据并渲染 ======
+  async function fetchAndRender() {
+    try {
+      const resp = await fetch(DATA_URL, { cache: "no-store" });
+      const data = await resp.json();
+      window.__DASHBOARD_DATA__ = data;
+
+      // 先保存展开状态
+      saveGroupOpenState();
+
+      renderOverview(data);
+      renderGroups(data);
+    } catch (e) {
+      console.error("加载面板数据失败：", e);
+    }
+  }
+
+  // 首次加载 & 定时刷新
+  fetchAndRender();
+  setInterval(fetchAndRender, 5000);
+</script>
+{% endblock %}
