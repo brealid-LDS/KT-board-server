@@ -42,14 +42,13 @@ def timeago(ts):
     elif s < 3600:
         return f'{int(s/60)} 分钟前'
     elif s < 86400:
-        return f'{int(s/3600)} 小时前'
+        return f'{int(s/3600)} 小时 {int(s/60) % 60} 分钟前'
     else:
-        return f'{int(s/86400)} 天前'
+        return f'{int(s/86400)} 天 {int(s/3600) % 24} 小时 {int(s/60) % 60} 分钟前'
 
 def clamp_pct(p):
     return max(0.0, min(100.0, p))
 
-# ====== API（保持你原有的三个） ======
 @app.route(f'/{config.key_path}/clear-client')
 def clear_client():
     registered_clients.clear()
