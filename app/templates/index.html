@@ -14,7 +14,7 @@
 
 {% block scripts %}
 <script>
-  const DATA_URL = "/{{ config.key_path if config and config.key_path else '' }}/dashboard-data".replace(/\/\//g, "/");
+  const DATA_URL = "/{{ config.key_path if config and config.key_path else '' }}/dashboard-data?groups={{ g_allowed }}".replace(/\/\//g, "/");
 
   // ====== UI 状态：保留展开的 Group 与 GPU 详情 ======
   const uiState = {

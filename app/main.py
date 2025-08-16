@@ -115,13 +115,24 @@ def heart_beat():
 # ====== 新增：仪表盘页面（Jinja 模版） ======
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html', site_name=getattr(config, 'site_name', 'KT board'))
+    if 'groups' in request.args:
+        g_allowed = request.args['groups']
+    else:
+        g_allowed = 'none'
+    return render_template('index.html', site_name=getattr(config, 'site_name', 'KT board'), g_allowed=g_allowed)
 
 # ====== 新增：前端自动刷新用的数据接口 ======
 @app.route(f'/dashboard-data', methods=['GET'])
 def dashboard_data():
+    g_allowed = request.args['groups'].split(',')
+    if g_allowed == ['all']:
+        g_allowed = list(group_cache.keys())
+    g_allowed = [x.lower() for x in g_allowed]
+    
     groups_payload = []
     for group_name in sorted(group_cache.keys()):
+        if group_name.lower() not in g_allowed:
+            continue
         tokens = group_cache[group_name].get('client-token', [])
         clients_payload = []
         for t in sorted(tokens, key=lambda x: registered_clients[x]['client_name']):
