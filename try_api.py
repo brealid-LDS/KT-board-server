@@ -23,6 +23,7 @@ for i in range(1, 11):
             'cpu': [random.random() for _ in range(random.choice([2, 4, 6, 8, 12, 16]))],
             'mem': [random.random() * 16, 16], # 单位 GB
             'gpu': [{
+                    'name': 'Nvidia GeoForce 9090',
                     'usage': random.random(),
                     'mem': [random.random() * 16, 16], # 单位 GB
                 } for _ in range(8)

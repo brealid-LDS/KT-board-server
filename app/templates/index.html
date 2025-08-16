@@ -145,7 +145,8 @@
       const memLabel = `${fmt(g.memUsedGB)} / ${fmt(g.memTotalGB)} GB (${fmt(memPct)}%)`;
       return `
         <tr>
-          <td class="mono">GPU ${i}</td>
+          <!-- <td class="mono">GPU ${i}</td> -->
+          <td class="mono">[${i}] ${g.name}</td>
           <td>${bar(utilPct, `${fmt(utilPct)}%`)}</td>
           <td>${bar(memPct, memLabel)}</td>
         </tr>`;
@@ -161,7 +162,7 @@
         </div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>编号</th><th style="width:40%">利用率</th><th style="width:40%">显存</th></tr></thead>
+            <thead><tr><th>编号</th><th style="width:37%">利用率</th><th style="width:37%">显存</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>

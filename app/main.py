@@ -109,7 +109,9 @@ def heart_beat():
     server_cache[client_token]["last_heartbeat"] = time.time()
     if client_info.get('gpu', []) == [] and server_cache[client_token]["client_info"].get('gpu', []) != []:
         client_info['gpu'] = server_cache[client_token]["client_info"]['gpu']
-    server_cache[client_token]["client_info"] = client_info
+    for x in client_info:
+        if client_info[x] not in [[], None]:
+            server_cache[client_token]["client_info"][x] = client_info[x]
     return jsonify({"status": "ok", "message": f"Heartbeat received from {client_token}"})
 
 # ====== 新增：仪表盘页面（Jinja 模版） ======
@@ -160,7 +162,8 @@ def dashboard_data():
 
             # GPU： [{usage: 0-1, mem: [usedGB, totalGB]}, ...]
             gpus = []
-            for g in ci.get('gpu', []) or []:
+            for i, g in enumerate(ci.get('gpu', []) or []):
+                name = g.get('name', f'GPU {i}')
                 usage = g.get('usage', None)
                 mem = g.get('mem', [])
                 if usage is not None:
@@ -172,6 +175,7 @@ def dashboard_data():
                 else:
                     gu = gt = None
                 gpus.append({
+                    "name": name,
                     "usagePct": usage_pct,
                     "memUsedGB": gu,
                     "memTotalGB": gt,
